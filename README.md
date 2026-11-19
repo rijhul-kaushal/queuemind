@@ -2,7 +2,7 @@
 
 > **Developer-focused background job orchestration, multi-worker scheduling simulation, and workload performance intelligence platform.**
 
-![QueueMind Overview](https://raw.githubusercontent.com/queuemind/queuemind/main/public/preview.png)
+<!-- Add a screenshot of the project when available. -->
 
 ---
 
@@ -23,21 +23,23 @@ Executing every task immediately saturates server resources, creates unpredictab
 
 ---
 
-## 2. Phased Development Roadmap
+## 2. Development Roadmap
 
-| Phase | Milestone | Status | Key Deliverables |
-|---|---|---|---|
-| **Phase 1** | **Frontend MVP & Simulator** | **CURRENT (Active)** | Next.js 16 App Router, TypeScript, deterministic multi-worker FIFO & Priority simulator, Gantt timeline, metrics computation, LocalStorage persistence. |
-| **Phase 2** | **FastAPI & Relational Backend** | *Planned (Later)* | Python 3.12, FastAPI REST API, PostgreSQL database, Redis Streams/queues, and persistent job lifecycle tracking. |
-| **Phase 3** | **Distributed Processing Fleet** | *Planned (Later)* | Celery/custom distributed Python workers, multi-worker concurrency, exponential backoff retries, dead-letter queues (DLQ), and heartbeat health checks. |
-| **Phase 4** | **Machine Learning Forecasting** | *Planned (Later)* | scikit-learn & XGBoost regression models predicting execution duration from payload features; ML-assisted Shortest Remaining Processing Time (SRPT) scheduler. |
-| **Phase 5** | **Empirical Evaluation** | *Planned (Later)* | Rigorous benchmarking comparing FIFO, Priority, and ML-assisted scheduling on real and synthetic workloads. |
+| Phase | Status | What exists |
+|---|---|---|
+| **1 — Frontend MVP** | **Implemented** | Next.js 16, TypeScript, FIFO/Priority discrete-event simulator, Gantt chart, metrics, browser demo data. |
+| **2 — FastAPI + persistence** | **Implemented; local verification performed** | FastAPI REST endpoints, async SQLAlchemy, PostgreSQL 16, Redis 7 sorted-set queues, job history, frontend Live Mode. |
+| **3 — Worker execution** | **Implemented; further validation needed** | Independent Python worker process, asyncio concurrency, Redis job consumption, heartbeat, retry/backoff, DLQ and orphan-recovery logic. |
+| **4 — ML duration prediction** | **Planned** | Train regression models and evaluate predicted-duration scheduling. |
+| **5 — Benchmarking** | **Planned** | Reproducible comparative experiments for FIFO, Priority and ML scheduling. |
 
-> **Architectural Integrity Notice:** Phase 1 uses seeded demo data and a client-side discrete-event simulation engine. Future backend, distributed processing, and ML systems are architected via clean data boundaries but are **NOT** falsely represented as implemented in this phase.
+**What is real vs simulated:** The API, database, Redis queue coordination and worker processes are real local software components. Task handlers in `backend/tasks.py` **simulate** email, media, inference and data-pipeline operations rather than integrating external providers. Multi-machine deployment and rigorous failure-injection testing are not yet demonstrated. No ML model or 1,000+ workload benchmark is claimed as implemented.
+
+**Local status:** Redis and PostgreSQL Docker containers were observed healthy during setup. The repository contains the Phase 2/3 commits; passing all end-to-end scenarios still requires explicit testing.
 
 ---
 
-## 3. Technology Stack (Phase 1 Frontend MVP)
+## 3. Technology Stack
 
 - **Framework:** Next.js 16 (App Router, Turbopack/Webpack compilation)
 - **Language:** TypeScript 5 (Strict type checking)
@@ -45,7 +47,11 @@ Executing every task immediately saturates server resources, creates unpredictab
 - **Visualizations:** Recharts (Area charts, bar histograms, donut distributions)
 - **Persistence:** Safe browser-only `localStorage` abstraction with SSR guards
 - **Testing:** Standalone TypeScript test runner (`tsx scripts/test-scheduling.ts`)
-- **Deployment:** Vercel / GitHub
+- **Backend:** Python, FastAPI, SQLAlchemy async, Pydantic Settings, PostgreSQL 16 / SQLite fallback
+- **Queue broker:** Redis 7 sorted sets; fakeredis development fallback
+- **Workers:** Python asyncio, retries with backoff, dead-letter queue and heartbeat monitoring
+- **Infrastructure:** Docker Compose for PostgreSQL and Redis
+- **Deployment:** Next.js frontend supports Vercel; full backend/worker stack is currently local
 
 ---
 
@@ -99,10 +105,10 @@ src/
     └── test-scheduling.ts            # Unit test suite for scheduling engine
 ```
 
-### Future API Compatibility (Repository Pattern)
+### Implemented API Integration (Repository Pattern)
 The application accesses all job and worker data exclusively through service boundaries (`jobService` and `workerService`) that depend on the `IJobRepository` and `IWorkerRepository` interfaces.
 
-In Phase 2, a `FastApiJobRepository` communicating with Python/FastAPI will be swapped in without modifying any UI component code.
+Phase 2 added `FastApiJobRepository.ts` and `FastApiWorkerRepository.ts` for Live Mode. The original demo repositories remain available.
 
 ---
 
@@ -152,46 +158,41 @@ QueueMind includes four realistic workload scenarios out of the box:
 
 ---
 
-## 7. Future Backend Architecture (Phase 2 & 3 - Design Blueprint)
+## 7. Backend and Worker Architecture (Phases 2 & 3)
 
-```
-[ Next.js 16 Client ]
-          |
-          | HTTPS / REST (JSON)
-          v
-[ FastAPI Backend (Python 3.12) ]
-          |
-    +-----+--------------------+
-    |                          |
-    v                          v
-[ PostgreSQL 16 ]       [ Redis 7 Cluster ]
-- Job history           - Priority Queues (ZSET)
-- Execution logs        - Stream coordination
-- Worker state          - Heartbeat tracking
-                               |
-                               | BRPOP / XREADGROUP
-                               v
-                     [ Distributed Worker Nodes ]
-                     - Worker Node Alpha (EC2)
-                     - Worker Node Beta (GKE)
-                     - Exponential Backoff & DLQ
+```text
+Next.js frontend (localhost:3000)
+    | Live Mode / REST
+    v
+FastAPI (localhost:8000)
+    |                  |
+    v                  v
+PostgreSQL 16       Redis 7 (sorted-set queues)
+job records         priority, delayed retries, DLQ
+worker records           |
+execution logs           v
+                    Python worker process(es)
+                    task execution + heartbeats
 ```
 
-### FastAPI API Endpoints (Planned)
-- `POST /api/v1/jobs` — Enqueue a new background job with queue name and priority.
-- `GET /api/v1/jobs` — List jobs with pagination, status, and queue filters.
-- `GET /api/v1/jobs/{id}` — Retrieve detailed job execution state and logs.
-- `POST /api/v1/jobs/{id}/retry` — Re-queue a failed job with updated retry budget.
-- `POST /api/v1/jobs/{id}/cancel` — Cancel an in-flight or pending job.
-- `GET /api/v1/workers` — Worker fleet telemetry, CPU, memory, and heartbeats.
-- `GET /api/v1/analytics/throughput` — Time-series execution volume and failure metrics.
+The backend code lives under `backend/`: `main.py` registers API routes; `models.py` and `database.py` handle persistence; `api/` and `services/` manage jobs, workers, queues and analytics; `queue/` coordinates Redis queues and heartbeats; `worker.py` runs independent workers; `tasks.py` provides simulated task handlers.
+
+**Implemented APIs:** `GET /health`, `GET /docs`, `GET/POST /api/v1/jobs`, job detail/logs/retry/cancel/delete, `GET /api/v1/workers`, `GET /api/v1/queues`, `GET /api/v1/queues/dlq`, DLQ replay, analytics overview/throughput and `POST /api/v1/reset-demo`.
+
+**Queue policy:** Redis `ZPOPMIN` atomically removes jobs from each sorted-set queue. Priority order is CRITICAL, HIGH, MEDIUM, LOW, with arrival-time tie breaking. Across multiple named queues, workers check subscribed queues in order; this is not a globally optimal multi-queue scheduler.
+
+**Reliability paths in code:** Exponential-backoff delayed retries, dead-letter routing, heartbeat TTL and stale-worker recovery. Their presence in code is not proof that every crash or concurrent-worker edge case has been tested.
+
+**Important:** `POST /api/v1/reset-demo` and the frontend reset action **delete existing jobs, execution logs and worker records** before reseeding. Do not run them on data you want to keep.
+
+For further details, see [BACKEND_SETUP.md](BACKEND_SETUP.md).
 
 ---
 
 ## 8. Future Machine Learning Architecture (Phase 4 - Design Blueprint)
 
 ### The Theoretical Problem
-In scheduling theory, the optimal algorithm to minimize average waiting time is **Shortest Remaining Processing Time (SRPT)**. However, in distributed systems, true execution durations are unknown at arrival time.
+Shortest-job-first scheduling can minimize mean waiting time under idealized assumptions when durations are known. Preemptive SRPT is related; real workloads have unknown durations, fairness constraints and prediction error.
 
 ### The Solution: Duration Regression Forecasting
 QueueMind Phase 4 will introduce an ML regression pipeline:
@@ -207,7 +208,7 @@ QueueMind Phase 4 will introduce an ML regression pipeline:
    - Loss Function: Huber Loss (robust to outlier long-running jobs).
 3. **ML-Assisted Scheduler:**
    - Jobs are assigned dynamic priorities proportional to predicted duration: $\text{Rank} = f(\hat{D}_i, \text{SLA})$.
-   - Approximates SRPT without requiring manual developer priority guessing.
+   - Explores predicted-duration-aware scheduling, to be evaluated against FIFO and Priority.
    - Anti-starvation aging factor prevents long tasks from indefinite postponement.
 
 ---
@@ -236,39 +237,58 @@ npm run test:scheduling
 
 ## 10. Local Setup & Installation
 
-### Prerequisites
-- Node.js 18.x or 20.x or 22+ (tested on Node v24.11.1)
-- npm 10+ or pnpm 9+
+### Requirements
+- Node.js and npm
+- Python with FastAPI, Uvicorn, SQLAlchemy, Pydantic Settings, Redis client and async database drivers installed
+- Docker Desktop and Docker Compose for the PostgreSQL 16 + Redis 7 local setup
 
-### Quick Start
+### First-time frontend setup
 
-```bash
-# 1. Clone repository
-git clone https://github.com/queuemind/queuemind.git
+```cmd
+git clone https://github.com/rijhul-kaushal/queuemind.git
 cd queuemind
-
-# 2. Install dependencies
 npm install
-
-# 3. Run scheduling engine tests
 npm run test:scheduling
+```
 
-# 4. Start local development server
+### Start local infrastructure
+
+```cmd
+docker compose up -d
+docker compose ps
+```
+
+Create a local `.env` (ignored by Git). The PostgreSQL password must match your `docker-compose.yml`:
+
+```dotenv
+DATABASE_URL=postgresql+asyncpg://queuemind:YOUR_LOCAL_POSTGRES_PASSWORD@localhost:5432/queuemind
+REDIS_URL=redis://localhost:6379/0
+NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+```
+
+**Terminal 1 — FastAPI:**
+```cmd
+python -m uvicorn backend.main:app --reload --port 8000
+```
+Open [http://localhost:8000/health](http://localhost:8000/health) and [http://localhost:8000/docs](http://localhost:8000/docs). Confirm `redis_live` is `true` when testing cross-process workers.
+
+**Terminal 2 — worker:**
+```cmd
+python -m backend.worker --worker-id worker-alpha --concurrency 4
+```
+
+**Terminal 3 — frontend:**
+```cmd
 npm run dev
-
-# 5. Open browser
-# Navigate to http://localhost:3000
 ```
 
-### Production Build
+Open [http://localhost:3000](http://localhost:3000) and switch to Live Mode for backend-backed data. The simulator also works in Demo Mode.
 
-```bash
-# Build optimized production bundle
-npm run build
+**Stop safely:** Use Ctrl+C in each Python/Node terminal. Then `docker compose stop` to stop Redis and PostgreSQL without removing their containers or named volumes. Later use `docker compose start` to resume. **Do not run `docker compose down -v`** unless you intend to delete the database and Redis volumes.
 
-# Start production server
-npm start
-```
+**Frontend production build:** `npm run build` then `npm start`. This does not deploy the Python API, database, Redis or workers.
+
+**Security:** The included Compose file has development credentials and publishes ports on the host. Do not expose this configuration directly to the public internet.
 
 ---
 
