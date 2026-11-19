@@ -32,9 +32,9 @@ class JobModel(Base):
     max_retries = Column(Integer, default=3)
     error_message = Column(Text, nullable=True)
     tags_json = Column(Text, default="[]")  # Serialized list of strings
-    created_at = Column(DateTime, default=utc_now, nullable=False, index=True)
-    started_at = Column(DateTime, nullable=True)
-    completed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
 
     @property
     def tags(self):
@@ -64,7 +64,7 @@ class WorkerModel(Base):
     cpu_utilization = Column(Float, default=0.0)
     memory_usage_mb = Column(Integer, default=128)
     uptime_seconds = Column(Integer, default=0)
-    heartbeat_at = Column(DateTime, default=utc_now, nullable=False)
+    heartbeat_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     queues_json = Column(Text, default='["default"]')
     is_simulated = Column(Boolean, default=False)
 
@@ -88,7 +88,7 @@ class ExecutionLogModel(Base):
     worker_id = Column(String(64), nullable=True)
     event = Column(String(64), nullable=False)  # ENQUEUED, STARTED, COMPLETED, FAILED, RETRIED, CANCELLED, DLQ
     message = Column(Text, nullable=False)
-    timestamp = Column(DateTime, default=utc_now, nullable=False)
+    timestamp = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
 
 # Composite indexes for high throughput querying
