@@ -41,3 +41,10 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# python & sqlite
+__pycache__/
+*.py[cod]
+*$py.class
+*.db
+*.sqlite3

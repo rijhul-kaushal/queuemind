@@ -1,12 +1,25 @@
 import { IWorkerRepository } from '../repositories/WorkerRepository';
 import { DemoWorkerRepository } from '../repositories/DemoWorkerRepository';
+import { FastApiWorkerRepository } from '../repositories/FastApiWorkerRepository';
 import { Worker } from '../../types/worker';
 
 class WorkerService {
   private repository: IWorkerRepository;
+  private isFastApiMode: boolean = false;
+  private fastApiRepo = new FastApiWorkerRepository();
+  private demoRepo = new DemoWorkerRepository();
 
-  constructor(repository: IWorkerRepository) {
-    this.repository = repository;
+  constructor() {
+    this.repository = this.demoRepo;
+  }
+
+  getIsFastApiMode(): boolean {
+    return this.isFastApiMode;
+  }
+
+  setBackendMode(useFastApi: boolean) {
+    this.isFastApiMode = useFastApi;
+    this.repository = useFastApi ? this.fastApiRepo : this.demoRepo;
   }
 
   setRepository(newRepo: IWorkerRepository) {
@@ -34,4 +47,4 @@ class WorkerService {
   }
 }
 
-export const workerService = new WorkerService(new DemoWorkerRepository());
+export const workerService = new WorkerService();

@@ -1,15 +1,46 @@
 import { IJobRepository } from '../repositories/JobRepository';
 import { DemoJobRepository } from '../repositories/DemoJobRepository';
+import { FastApiJobRepository } from '../repositories/FastApiJobRepository';
 import { Job, JobFilterOptions, CreateJobInput } from '../../types/job';
+import { LocalStorageManager } from '../storage/localStorage';
+
+const PREF_BACKEND_KEY = 'queuemind_backend_mode_v2';
 
 class JobService {
   private repository: IJobRepository;
+  private isFastApiMode: boolean = false;
+  private fastApiRepo = new FastApiJobRepository();
+  private demoRepo = new DemoJobRepository();
 
-  constructor(repository: IJobRepository) {
-    this.repository = repository;
+  constructor() {
+    this.repository = this.demoRepo;
   }
 
-  // Allows switching implementation dynamically (e.g. FastAPIJobRepository in Phase 2)
+  getIsFastApiMode(): boolean {
+    return this.isFastApiMode;
+  }
+
+  setBackendMode(useFastApi: boolean) {
+    this.isFastApiMode = useFastApi;
+    this.repository = useFastApi ? this.fastApiRepo : this.demoRepo;
+    LocalStorageManager.setItem(PREF_BACKEND_KEY, useFastApi);
+  }
+
+  async checkBackendHealth(): Promise<{ online: boolean; redisLive?: boolean }> {
+    try {
+      const res = await fetch('http://localhost:8000/health', {
+        signal: AbortSignal.timeout(1500),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return { online: true, redisLive: data.redis_live };
+      }
+      return { online: false };
+    } catch {
+      return { online: false };
+    }
+  }
+
   setRepository(newRepo: IJobRepository) {
     this.repository = newRepo;
   }
@@ -43,4 +74,4 @@ class JobService {
   }
 }
 
-export const jobService = new JobService(new DemoJobRepository());
+export const jobService = new JobService();

@@ -1,0 +1,39 @@
+services:
+  # Queue Coordination & Priority Scheduling Broker
+  redis:
+    image: redis:7-alpine
+    container_name: queuemind-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Relational Database for Job History & Worker Telemetry
+  postgres:
+    image: postgres:16-alpine
+    container_name: queuemind-postgres
+    environment:
+      POSTGRES_USER: queuemind
+      POSTGRES_PASSWORD: queuemind_password
+      POSTGRES_DB: queuemind
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U queuemind -d queuemind"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  redis_data:
+  postgres_data:
