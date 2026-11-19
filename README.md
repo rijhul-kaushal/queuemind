@@ -3,6 +3,7 @@
 > **Developer-focused background job orchestration, multi-worker scheduling simulation, and workload performance intelligence platform.**
 
 <!-- Add a screenshot of the project when available. -->
+<img width="1916" height="948" alt="image" src="https://github.com/user-attachments/assets/3f4d7e21-d007-4436-b58f-9aa2554e25c9" />
 
 ---
 
